@@ -2,6 +2,7 @@ package sumologic
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"strings"
@@ -47,12 +48,20 @@ func (s *SumoLogicAdapter) SendLog(msg *router.Message) {
 	headers.Set("X-Sumo-Host", "bar")
 	headers.Set("X-Sumo-Category", "baz")
 	fmt.Println("SEND LOG {0}", msg.Data)
+	if strings.Contains(msg.Container.Name, "logspout") {
+		return
+	}
 	var r, err = s.client.Post("https://httpbin.org/post", strings.NewReader(msg.Data), headers)
 	if err != nil {
 		errorf("Borked {0}", err)
 	}
 
 	fmt.Println(r.Status)
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		errorf("Borked {0}", err)
+	}
+	fmt.Println(string(body))
 }
 
 func errorf(format string, a ...interface{}) (err error) {
