@@ -22,7 +22,7 @@ type SumoLogicAdapter struct {
 
 func NewSumoLogicAdapter(route *router.Route) (router.LogAdapter, error) {
 
-	timeoutInMillis := 1000
+	timeoutInMillis := 10000
 	httpClient := heimdall.NewHTTPClient(time.Duration(timeoutInMillis))
 	httpClient.SetRetryCount(2)
 	httpClient.SetRetrier(heimdall.NewRetrier(heimdall.NewConstantBackoff(10)))
