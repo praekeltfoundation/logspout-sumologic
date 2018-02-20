@@ -19,6 +19,7 @@ func init() {
 type SumoLogicAdapter struct {
 	route  *router.Route
 	client heimdall.Client
+	endpoint String
 }
 
 func NewSumoLogicAdapter(route *router.Route) (router.LogAdapter, error) {
@@ -31,6 +32,7 @@ func NewSumoLogicAdapter(route *router.Route) (router.LogAdapter, error) {
 	return &SumoLogicAdapter{
 		route:  route,
 		client: httpClient,
+		endpoint: os.Getenv("SUMOLOGIC_ENDPOINT")
 	}, nil
 }
 
@@ -44,9 +46,9 @@ func (s *SumoLogicAdapter) Stream(logstream chan *router.Message) {
 
 func (s *SumoLogicAdapter) SendLog(msg *router.Message) {
 	headers := http.Header{}
-	headers.Set("X-Sumo-Name", "foo")
-	headers.Set("X-Sumo-Host", "bar")
-	headers.Set("X-Sumo-Category", "baz")
+	headers.Set("X-Sumo-Name", msg.Container.Name)
+	headers.Set("X-Sumo-Host", msg.Container.HostnamePath)
+	headers.Set("X-Sumo-Category", msg.Container.Image)
 	if strings.Contains(msg.Container.Name, "logspout") {
 		return
 	}
@@ -55,7 +57,7 @@ func (s *SumoLogicAdapter) SendLog(msg *router.Message) {
 	}
 	fmt.Println("SEND LOG FROM", msg.Container.Name)
 	fmt.Println("SEND LOG DATA", msg.Data)
-	var r, err = s.client.Post("https://httpbin.org/post", strings.NewReader(msg.Data), headers)
+	var r, err = s.client.Post(s.endpoint, strings.NewReader(msg.Data), headers)
 	if err != nil {
 		errorf("Borked {0}", err)
 	}
