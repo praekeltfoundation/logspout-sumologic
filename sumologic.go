@@ -34,18 +34,26 @@ func NewSumoLogicAdapter(route *router.Route) (router.LogAdapter, error) {
 }
 
 func (s *SumoLogicAdapter) Stream(logstream chan *router.Message) {
-	for raw_message := range logstream {
-		headers := http.Header{}
-		headers.Set("X-Sumo-Name", "foo")
-		headers.Set("X-Sumo-Host", "bar")
-		headers.Set("X-Sumo-Category", "baz")
-		var r, err = s.client.Post("https://httpbin.org/post", strings.NewReader(raw_message.Data), headers)
-		if err != nil {
-			errorf("Borked {0}", err)
-		}
-		fmt.Println(r.Status)
+	for msg := range logstream {
+
+		go s.SendLog(msg)
 
 	}
+}
+
+func (s *SumoLogicAdapter) SendLog(msg *router.Message) {
+	headers := http.Header{}
+	headers.Set("X-Sumo-Name", "foo")
+	headers.Set("X-Sumo-Host", "bar")
+	headers.Set("X-Sumo-Category", "baz")
+	fmt.Println("SEND LOG {0}", msg.Data)
+	var r, err = s.client.Post("https://httpbin.org/post", strings.NewReader(msg.Data), headers)
+	if err != nil {
+		errorf("Borked {0}", err)
+	}
+
+	fmt.Println(r.Status)
+	fmt.Println(r.)
 }
 
 func errorf(format string, a ...interface{}) (err error) {
