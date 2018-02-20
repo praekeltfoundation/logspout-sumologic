@@ -47,10 +47,14 @@ func (s *SumoLogicAdapter) SendLog(msg *router.Message) {
 	headers.Set("X-Sumo-Name", "foo")
 	headers.Set("X-Sumo-Host", "bar")
 	headers.Set("X-Sumo-Category", "baz")
-	fmt.Println("SEND LOG {0}", msg.Data)
 	if strings.Contains(msg.Container.Name, "logspout") {
 		return
 	}
+	if strings.Contains(msg.Container.Image, "logspout") {
+		return
+	}
+	fmt.Println("SEND LOG FROM", msg.Container.Name)
+	fmt.Println("SEND LOG DATA", msg.Data)
 	var r, err = s.client.Post("https://httpbin.org/post", strings.NewReader(msg.Data), headers)
 	if err != nil {
 		errorf("Borked {0}", err)
