@@ -53,7 +53,6 @@ func (s *SumoLogicAdapter) SendLog(msg *router.Message) {
 	}
 
 	fmt.Println(r.Status)
-	fmt.Println(r.)
 }
 
 func errorf(format string, a ...interface{}) (err error) {
