@@ -17,8 +17,8 @@ func init() {
 }
 
 type SumoLogicAdapter struct {
-	route  *router.Route
-	client heimdall.Client
+	route    *router.Route
+	client   heimdall.Client
 	endpoint String
 }
 
@@ -30,9 +30,9 @@ func NewSumoLogicAdapter(route *router.Route) (router.LogAdapter, error) {
 	httpClient.SetRetrier(heimdall.NewRetrier(heimdall.NewConstantBackoff(10)))
 
 	return &SumoLogicAdapter{
-		route:  route,
-		client: httpClient,
-		endpoint: os.Getenv("SUMOLOGIC_ENDPOINT")
+		route:    route,
+		client:   httpClient,
+		endpoint: os.Getenv("SUMOLOGIC_ENDPOINT"),
 	}, nil
 }
 
