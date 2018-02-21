@@ -138,19 +138,19 @@ func (s *SumoLogicAdapter) buildHeaders(msg *router.Message) http.Header {
 	headers := http.Header{}
 
 	sourceName, nameErr := renderTemplate(msg, s.config.sourceName)
-	if nameErr != nil {
-		headers.Set("X-Sumo-Name", sourceName)
+	if nameErr == nil {
+		headers.Add("X-Sumo-Name", sourceName)
 	}
 
 	sourceHost, hostErr := renderTemplate(msg, s.config.sourceHost)
-	if hostErr != nil {
-		headers.Set("X-Sumo-Host", sourceHost)
+	if hostErr == nil {
+		headers.Add("X-Sumo-Host", sourceHost)
 	}
 
 	if s.config.sourceCategory != "" {
 		sourceCategory, catErr := renderTemplate(msg, s.config.sourceCategory)
-		if catErr != nil {
-			headers.Set("X-Sumo-Category", sourceCategory)
+		if catErr == nil {
+			headers.Add("X-Sumo-Category", sourceCategory)
 		}
 	}
 	return headers
