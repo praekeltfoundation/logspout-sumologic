@@ -42,7 +42,7 @@ func init() {
 func NewSumoLogicAdapter(route *router.Route) (router.LogAdapter, error) {
 
 	config := buildConfig(route)
-	timeoutInMillis := int(config.timeout) * 1000
+	timeoutInMillis := int(config.timeout)
 	httpClient := heimdall.NewHTTPClient(timeoutInMillis)
 	httpClient.SetRetryCount(int(config.retries))
 	httpClient.SetRetrier(
