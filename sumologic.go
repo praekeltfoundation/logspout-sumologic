@@ -131,6 +131,9 @@ func (s *SumoLogicAdapter) sendLog(msg *router.Message) {
 
 }
 
+// buildHeaders creates a set of Sumologic classification headers,
+// these header values are derived from env vars and/or container properties,
+// then renderTemplate is called to compile for eg {{.Container.Name}}
 func (s *SumoLogicAdapter) buildHeaders(msg *router.Message) http.Header {
 	headers := http.Header{}
 
@@ -153,6 +156,8 @@ func (s *SumoLogicAdapter) buildHeaders(msg *router.Message) http.Header {
 	return headers
 }
 
+// renderTemplate compiles a template string, e.g {{.Container.Name}} using
+// a router.Message as the context.
 func renderTemplate(msg *router.Message, text string) (string, error) {
 	tmpl, err := template.New("info").Parse(text)
 	if err != nil {
