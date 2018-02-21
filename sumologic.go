@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gliderlabs/logspout/router"
 	"github.com/gojektech/heimdall"
@@ -36,10 +37,12 @@ type SumoLogicConfig struct {
 	backoff        int64
 }
 
+// NewSumoLogicAdapter provides a SumoLogicAdapter
+// to the logspout adapter factory.
 func NewSumoLogicAdapter(route *router.Route) (router.LogAdapter, error) {
 
 	config := buildConfig(route)
-	timeoutInMillis := int(config.timeout)
+	timeoutInMillis := time.Duration(config.timeout) * time.Millisecond
 	httpClient := heimdall.NewHTTPClient(timeoutInMillis)
 	httpClient.SetRetryCount(int(config.retries))
 	httpClient.SetRetrier(
@@ -60,7 +63,7 @@ func buildConfig(route *router.Route) *SumoLogicConfig {
 			"SUMOLOGIC_SOURCE_HOST", "{{.Container.Config.Hostname}}"),
 		retries: getintopt("SUMOLOGIC_RETRIES", 2),
 		backoff: getintopt("SUMOLOGIC_BACKOFF", 10),
-		timeout: getintopt("SUMOLOGIC_TIMEOUT", 10),
+		timeout: getintopt("SUMOLOGIC_TIMEOUT_MS", 10000),
 	}
 	log.Info("ENDPOINT: ", config.endPoint)
 	return config
