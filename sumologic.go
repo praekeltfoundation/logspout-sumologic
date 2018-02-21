@@ -16,6 +16,7 @@ import (
 )
 
 func init() {
+	log.SetOutput(os.Stdout)
 	router.AdapterFactories.Register(NewSumoLogicAdapter, "sumologic")
 }
 
@@ -33,10 +34,6 @@ type SumoLogicConfig struct {
 	retries        int64
 	timeout        int64
 	backoff        int64
-}
-
-func init() {
-	log.SetOutput(os.Stdout)
 }
 
 func NewSumoLogicAdapter(route *router.Route) (router.LogAdapter, error) {
