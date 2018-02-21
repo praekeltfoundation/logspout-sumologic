@@ -65,19 +65,21 @@ func buildConfig(route *router.Route) *SumoLogicConfig {
 		backoff: getintopt("SUMOLOGIC_BACKOFF", 10),
 		timeout: getintopt("SUMOLOGIC_TIMEOUT_MS", 10000),
 	}
-	log.Info("ENDPOINT: ", config.endPoint)
 	return config
 }
 
+// getopt retrieves an environment variable if a value is set.
+// The supplied default is returned otherwise.
 func getopt(name string, dfault string) string {
 	value := os.Getenv(name)
-	log.Info(name, ": ", value)
 	if value == "" {
 		value = dfault
 	}
 	return value
 }
 
+// getoptint retrieves an environment variable as an int if a value is set.
+// The supplied default int is returned otherwise.
 func getintopt(name string, dfault int64) int64 {
 	value := os.Getenv(name)
 	if value == "" {
@@ -85,17 +87,20 @@ func getintopt(name string, dfault int64) int64 {
 	}
 	intValue, err := strconv.ParseInt(value, 10, 64)
 	if err != nil {
-		return 0
+		log.WithError(err).WithField(name, value).Error("Failed to parse")
+		return dfault
 	}
 	return intValue
 }
 
+// Stream is a logspout adapter implementation.
 func (s *SumoLogicAdapter) Stream(logstream chan *router.Message) {
 	for msg := range logstream {
 		go s.sendLog(msg)
 	}
 }
 
+// sendLog post a log to Sumologic
 func (s *SumoLogicAdapter) sendLog(msg *router.Message) {
 
 	headers := s.buildHeaders(msg)
@@ -106,25 +111,24 @@ func (s *SumoLogicAdapter) sendLog(msg *router.Message) {
 		return
 	}
 
-	log.Debug("Sending LOG FROM", msg.Container.Name)
-	fmt.Println("SEND LOG DATA", msg.Data)
-
-	var r, err = s.client.Post(s.config.endPoint, strings.NewReader(msg.Data), headers)
+	req, err := s.client.Post(
+		s.config.endPoint, strings.NewReader(msg.Data), headers)
 	if err != nil {
-		log.Error("Borked {0}", err)
+		log.WithError(err).Error("Failed to send log to Sumologic")
 		return
 	}
 
-	fmt.Println(r.Status)
-	if r.StatusCode != http.StatusOK {
-		errorf("Borked {0}", err)
+	_, err = ioutil.ReadAll(req.Body)
+	if err != nil {
+		log.WithError(err)
+	}
+	req.Body.Close()
+	if req.StatusCode != http.StatusOK {
+		log.WithField(
+			"StatusCode", req.StatusCode).Error("Failed to send log to Sumologic")
 		return
 	}
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		errorf("Borked {0}", err)
-	}
-	fmt.Println(string(body))
+
 }
 
 func (s *SumoLogicAdapter) buildHeaders(msg *router.Message) http.Header {
@@ -152,7 +156,7 @@ func (s *SumoLogicAdapter) buildHeaders(msg *router.Message) http.Header {
 func renderTemplate(msg *router.Message, text string) (string, error) {
 	tmpl, err := template.New("info").Parse(text)
 	if err != nil {
-		return "", errorf("Couldn't parse sumologic source template. %v", err)
+		return "", fmt.Errorf("Couldn't parse sumologic source template. %v", err)
 	}
 	buf := new(bytes.Buffer)
 	err = tmpl.Execute(buf, msg)
@@ -161,13 +165,4 @@ func renderTemplate(msg *router.Message, text string) (string, error) {
 	}
 
 	return buf.String(), nil
-
-}
-
-func errorf(format string, a ...interface{}) (err error) {
-	err = fmt.Errorf(format, a...)
-	if os.Getenv("DEBUG") != "" {
-		fmt.Println(err.Error())
-	}
-	return
 }
