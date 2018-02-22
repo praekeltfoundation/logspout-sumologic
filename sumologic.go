@@ -86,7 +86,8 @@ func buildConfig(route *router.Route) *SumoLogicConfig {
 	return config
 }
 
-// getopt retrieves an environment variable if a value is set.
+// getopt retrieves an environment variable if it's set to
+// a non-emty string.
 // The supplied default is returned otherwise.
 func getopt(name string, dfault string) string {
 	value := os.Getenv(name)
@@ -96,7 +97,8 @@ func getopt(name string, dfault string) string {
 	return value
 }
 
-// getoptint retrieves an environment variable as an int if a value is set.
+// getoptint retrieves an environment variable as an int if it's set
+// to a non-empty string.
 // The supplied default int is returned otherwise.
 func getintopt(name string, dfault int64) int64 {
 	value := os.Getenv(name)
@@ -111,7 +113,7 @@ func getintopt(name string, dfault int64) int64 {
 	return intValue
 }
 
-// Stream is a logspout adapter implementation.
+// Stream is a logspout adapter implementation method.
 func (s *SumoLogicAdapter) Stream(logstream chan *router.Message) {
 	for msg := range logstream {
 		go s.sendLog(msg)
@@ -153,7 +155,7 @@ func (s *SumoLogicAdapter) sendLog(msg *router.Message) {
 
 // buildHeaders creates a set of Sumologic classification headers,
 // these header values are derived from env vars and/or container properties,
-// then renderTemplate is called to compile for eg {{.Container.Name}}
+// then renderTemplate is called to compile for e.g {{.Container.Name}}
 func (s *SumoLogicAdapter) buildHeaders(msg *router.Message) http.Header {
 	headers := http.Header{}
 
