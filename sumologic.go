@@ -2,6 +2,7 @@ package sumologic
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"io/ioutil"
@@ -35,6 +36,21 @@ type SumoLogicConfig struct {
 	retries        int64
 	timeout        int64
 	backoff        int64
+}
+
+type SumologicData struct {
+	Message   string         `json:"message"`
+	Container *ContainerData `json:"container"`
+	Timestamp string         `json:"timestamp"`
+}
+
+type ContainerData struct {
+	Time     string `json:"time"`
+	Source   string `json:"source"`
+	Name     string `json:"docker_name"`
+	ID       string `json:"docker_id"`
+	Image    string `json:"docker_image"`
+	Hostname string `json:"docker_hostname"`
 }
 
 // NewSumoLogicAdapter provides a SumoLogicAdapter
@@ -104,23 +120,25 @@ func (s *SumoLogicAdapter) Stream(logstream chan *router.Message) {
 func (s *SumoLogicAdapter) sendLog(msg *router.Message) {
 
 	headers := s.buildHeaders(msg)
-	if strings.Contains(msg.Container.Name, "logspout") {
-		return
-	}
-	if strings.Contains(msg.Container.Image, "logspout") {
+	data := s.buildData(msg)
+
+	strData, err := json.Marshal(data)
+	if err != nil {
+		log.WithError(err).WithField("message_source", msg.Source).Errorf(
+			"Unable to build json data, skipping send")
 		return
 	}
 
-	req, err := s.client.Post(
-		s.config.endPoint, strings.NewReader(msg.Data), headers)
-	if err != nil {
-		log.WithError(err).Error("Failed to send log to Sumologic")
+	req, reqErr := s.client.Post(
+		s.config.endPoint, strings.NewReader(string(strData)), headers)
+	if reqErr != nil {
+		log.WithError(reqErr).Error("Failed to send log to Sumologic")
 		return
 	}
 
 	_, err = ioutil.ReadAll(req.Body)
 	if err != nil {
-		log.WithError(err)
+		log.WithError(err).Error("Unable to read response body.")
 	}
 	req.Body.Close()
 	if req.StatusCode != http.StatusOK {
@@ -154,6 +172,24 @@ func (s *SumoLogicAdapter) buildHeaders(msg *router.Message) http.Header {
 		}
 	}
 	return headers
+}
+
+// buildData builds the message to send to sumologic.
+func (s *SumoLogicAdapter) buildData(msg *router.Message) *SumologicData {
+	container := &ContainerData{
+		Source:   msg.Source,
+		Time:     msg.Time.Format(time.RFC3339),
+		Name:     msg.Container.Name,
+		ID:       msg.Container.ID,
+		Image:    msg.Container.Config.Image,
+		Hostname: msg.Container.Config.Hostname,
+	}
+	return &SumologicData{
+		Container: container,
+		Message:   msg.Data,
+		// Sumologic supports 13 digit/UnixMilli in json messages.
+		Timestamp: strconv.FormatInt(msg.Time.UTC().UnixNano()/1000000, 10),
+	}
 }
 
 // renderTemplate compiles a template string, e.g {{.Container.Name}} using
