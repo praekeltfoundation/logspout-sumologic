@@ -123,8 +123,8 @@ func (s *SumoLogicAdapter) Stream(logstream chan *router.Message) {
 // sendLog post a log to Sumologic
 func (s *SumoLogicAdapter) sendLog(msg *router.Message) {
 
-	headers := s.buildHeaders(msg)
-	data := s.buildData(msg)
+	headers := buildHeaders(msg, s.config)
+	data := buildData(msg)
 
 	strData, err := json.Marshal(data)
 	if err != nil {
@@ -151,27 +151,28 @@ func (s *SumoLogicAdapter) sendLog(msg *router.Message) {
 			"StatusCode", req.StatusCode).Error("Failed to send log to Sumologic")
 		return
 	}
-
 }
 
 // buildHeaders creates a set of Sumologic classification headers,
 // these header values are derived from env vars and/or container properties,
 // then renderTemplate is called to compile for e.g {{.Container.Name}}
-func (s *SumoLogicAdapter) buildHeaders(msg *router.Message) http.Header {
+func buildHeaders(
+	msg *router.Message, config *SumoLogicConfig) http.Header {
+
 	headers := http.Header{}
 
-	sourceName, nameErr := renderTemplate(msg, s.config.sourceName)
+	sourceName, nameErr := renderTemplate(msg, config.sourceName)
 	if nameErr == nil {
 		headers.Add("X-Sumo-Name", sourceName)
 	}
 
-	sourceHost, hostErr := renderTemplate(msg, s.config.sourceHost)
+	sourceHost, hostErr := renderTemplate(msg, config.sourceHost)
 	if hostErr == nil {
 		headers.Add("X-Sumo-Host", sourceHost)
 	}
 
-	if s.config.sourceCategory != "" {
-		sourceCategory, catErr := renderTemplate(msg, s.config.sourceCategory)
+	if config.sourceCategory != "" {
+		sourceCategory, catErr := renderTemplate(msg, config.sourceCategory)
 		if catErr == nil {
 			headers.Add("X-Sumo-Category", sourceCategory)
 		}
@@ -180,7 +181,7 @@ func (s *SumoLogicAdapter) buildHeaders(msg *router.Message) http.Header {
 }
 
 // buildData builds the message to send to sumologic.
-func (s *SumoLogicAdapter) buildData(msg *router.Message) *SumologicData {
+func buildData(msg *router.Message) *SumologicData {
 	container := &ContainerData{
 		Source:   msg.Source,
 		Time:     msg.Time.Format(time.RFC3339),
