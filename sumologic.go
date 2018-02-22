@@ -149,7 +149,6 @@ func (s *SumoLogicAdapter) sendLog(msg *router.Message) {
 	if req.StatusCode != http.StatusOK {
 		log.WithField(
 			"StatusCode", req.StatusCode).Error("Failed to send log to Sumologic")
-		return
 	}
 }
 
