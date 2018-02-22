@@ -141,10 +141,11 @@ func (s *SumoLogicAdapter) sendLog(msg *router.Message) {
 	}
 
 	_, err = ioutil.ReadAll(req.Body)
+	defer req.Body.Close()
+
 	if err != nil {
 		log.WithError(err).Error("Unable to read response body.")
 	}
-	req.Body.Close()
 	if req.StatusCode != http.StatusOK {
 		log.WithField(
 			"StatusCode", req.StatusCode).Error("Failed to send log to Sumologic")
