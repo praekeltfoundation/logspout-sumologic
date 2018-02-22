@@ -58,11 +58,13 @@ type ContainerData struct {
 func NewSumoLogicAdapter(route *router.Route) (router.LogAdapter, error) {
 
 	config := buildConfig(route)
+
 	timeoutInMillis := time.Duration(config.timeout) * time.Millisecond
 	httpClient := heimdall.NewHTTPClient(timeoutInMillis)
-	httpClient.SetRetryCount(int(config.retries))
 	httpClient.SetRetrier(
 		heimdall.NewRetrier(heimdall.NewConstantBackoff(config.backoff)))
+	httpClient.SetRetryCount(int(config.retries))
+
 	return &SumoLogicAdapter{
 		route:  route,
 		client: httpClient,
