@@ -1,5 +1,7 @@
 # logspout-sumologic
 
+[![Build Status](https://travis-ci.org/praekeltfoundation/logspout-sumologic.svg?branch=master)](https://travis-ci.org/praekeltfoundation/logspout-sumologic)
+
 A [Logspout](https://github.com/gliderlabs/logspout) adapter for sending Docker container logs to a [Sumo Logic HTTP source ](https://help.sumologic.com/Send-Data/Sources/02Sources-for-Hosted-Collectors/HTTP-Source/Upload-Data-to-an-HTTP-Source).
 
 ## Usage Example:
