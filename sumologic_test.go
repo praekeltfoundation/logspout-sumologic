@@ -34,8 +34,8 @@ func (ts *TestSuite) TearDownTest() {
 }
 
 func (ts *TestSuite) Setenv(name string, value string) {
-	os.Setenv(name, value)
-	ts.AddCleanup(func() { os.Unsetenv(name) })
+	ts.NoError(os.Setenv(name, value))
+	ts.AddCleanup(func() { ts.NoError(os.Unsetenv(name)) })
 }
 
 func (ts *TestSuite) CaptureLogs() (*test.Hook, *bytes.Buffer){
