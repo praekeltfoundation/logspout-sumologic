@@ -11,9 +11,9 @@ env:
 install: []
 before_script:
 - cd docker
-- version="$(awk '$2 == "LOGSPOUT_SUMOLOGIC_VERSION" { print $3; exit }' Dockerfile | cut -d'~'
+- export version="$(awk '$2 == "LOGSPOUT_SUMOLOGIC_VERSION" { print $3; exit }' Dockerfile | cut -d'~'
   -f1)"
-- logspout_version="$(awk '$2 == "LOGSPOUT_VERSION" { print $3; exit }' Dockerfile | cut -d'~'
+- export logspout_version="$(awk '$2 == "LOGSPOUT_VERSION" { print $3; exit }' Dockerfile | cut -d'~'
   -f1)"
 - docker pull "$IMAGE" || true
 script:
@@ -22,6 +22,6 @@ before_deploy:
 - docker login -u "$REGISTRY_USER" -p "$REGISTRY_PASSWORD"
 deploy:
   provider: script
-  script: ./deploy.sh 
+  script: ./deploy.sh
   on:
     branch: master
