@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-
 // Test suite machinery.
 
 type TestSuite struct {
@@ -30,7 +29,9 @@ func (ts *TestSuite) AddCleanup(f func()) {
 }
 
 func (ts *TestSuite) TearDownTest() {
-	for _, f := range ts.cleanups { f() }
+	for _, f := range ts.cleanups {
+		f()
+	}
 }
 
 func (ts *TestSuite) Setenv(name string, value string) {
@@ -38,7 +39,7 @@ func (ts *TestSuite) Setenv(name string, value string) {
 	ts.AddCleanup(func() { ts.NoError(os.Unsetenv(name)) })
 }
 
-func (ts *TestSuite) CaptureLogs() (*test.Hook, *bytes.Buffer){
+func (ts *TestSuite) CaptureLogs() (*test.Hook, *bytes.Buffer) {
 	origOut := logrus.StandardLogger().Out
 	hook := test.NewGlobal()
 	var buffer bytes.Buffer
@@ -58,7 +59,7 @@ func (ts *TestSuite) Test_getopt_set_envar_empty_returns_default() {
 	ts.EqualValues("foo", getopt("SET_ENV_VAR", "foo"))
 }
 
-func (ts *TestSuite)  Test_getopt_set_envar_nonempty_returns_value() {
+func (ts *TestSuite) Test_getopt_set_envar_nonempty_returns_value() {
 	ts.Setenv("SET_ENV_VAR", "foo")
 	ts.EqualValues("foo", getopt("SET_ENV_VAR", "bar"))
 }
