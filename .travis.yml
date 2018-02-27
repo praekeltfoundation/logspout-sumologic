@@ -13,6 +13,7 @@ before_install:
 - cd docker
 install: []
 before_script:
+- cd docker
 - version="$(awk '$2 == "LOGSPOUT_SUMOLOGIC_VERSION" { print $3; exit }' Dockerfile | cut -d'~'
   -f1)"
 - docker pull "$IMAGE" || true
