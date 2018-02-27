@@ -19,16 +19,18 @@ import (
 
 func init() {
 	log.SetOutput(os.Stdout)
-	router.AdapterFactories.Register(NewSumoLogicAdapter, "sumologic")
+	router.AdapterFactories.Register(NewAdapter, "sumologic")
 }
 
-type SumoLogicAdapter struct {
+// Adapter streams log messages to a Sumo Logic endpoint.
+type Adapter struct {
 	route  *router.Route
 	client heimdall.Client
-	config *SumoLogicConfig
+	config *Config
 }
 
-type SumoLogicConfig struct {
+// Config holds the Sumo Logic endpoint configuration.
+type Config struct {
 	endPoint       string
 	sourceName     string
 	sourceCategory string
@@ -38,12 +40,14 @@ type SumoLogicConfig struct {
 	backoff        int64
 }
 
-type SumologicData struct {
+// Data holds the data to send to a Sumo Logic endpoint.
+type Data struct {
 	Message   string         `json:"message"`
 	Container *ContainerData `json:"container"`
 	Timestamp string         `json:"timestamp"`
 }
 
+// ContainerData holds information about the container we're streaming from.
 type ContainerData struct {
 	Time     string `json:"time"`
 	Source   string `json:"source"`
@@ -53,9 +57,8 @@ type ContainerData struct {
 	Hostname string `json:"docker_hostname"`
 }
 
-// NewSumoLogicAdapter provides a SumoLogicAdapter
-// to the logspout adapter factory.
-func NewSumoLogicAdapter(route *router.Route) (router.LogAdapter, error) {
+// NewAdapter provides an Adapter to the logspout adapter factory.
+func NewAdapter(route *router.Route) (router.LogAdapter, error) {
 
 	config := buildConfig(route)
 
@@ -65,15 +68,15 @@ func NewSumoLogicAdapter(route *router.Route) (router.LogAdapter, error) {
 		heimdall.NewRetrier(heimdall.NewConstantBackoff(config.backoff)))
 	httpClient.SetRetryCount(int(config.retries))
 
-	return &SumoLogicAdapter{
+	return &Adapter{
 		route:  route,
 		client: httpClient,
 		config: config,
 	}, nil
 }
 
-func buildConfig(route *router.Route) *SumoLogicConfig {
-	config := &SumoLogicConfig{
+func buildConfig(route *router.Route) *Config {
+	config := &Config{
 		endPoint:       getopt("SUMOLOGIC_ENDPOINT", route.Address),
 		sourceName:     getopt("SUMOLOGIC_SOURCE_NAME", "{{.Container.Name}}"),
 		sourceCategory: getopt("SUMOLOGIC_SOURCE_CATEGORY", ""),
@@ -114,14 +117,14 @@ func getintopt(name string, dfault int64) int64 {
 }
 
 // Stream is a logspout adapter implementation method.
-func (s *SumoLogicAdapter) Stream(logstream chan *router.Message) {
+func (s *Adapter) Stream(logstream chan *router.Message) {
 	for msg := range logstream {
 		go s.sendLog(msg)
 	}
 }
 
 // sendLog post a log to Sumologic
-func (s *SumoLogicAdapter) sendLog(msg *router.Message) {
+func (s *Adapter) sendLog(msg *router.Message) {
 
 	headers := buildHeaders(msg, s.config)
 	data := buildData(msg)
@@ -141,7 +144,7 @@ func (s *SumoLogicAdapter) sendLog(msg *router.Message) {
 	}
 
 	_, err = ioutil.ReadAll(req.Body)
-	defer req.Body.Close()
+	defer closeBody(req)
 
 	if err != nil {
 		log.WithError(err).Error("Unable to read response body.")
@@ -152,11 +155,19 @@ func (s *SumoLogicAdapter) sendLog(msg *router.Message) {
 	}
 }
 
+func closeBody(req *http.Response) {
+	err := req.Body.Close()
+	if err != nil {
+		log.WithError(err).Error("Unable to close response body.")
+	}
+}
+
+
 // buildHeaders creates a set of Sumologic classification headers,
 // these header values are derived from env vars and/or container properties,
 // then renderTemplate is called to compile for e.g {{.Container.Name}}
 func buildHeaders(
-	msg *router.Message, config *SumoLogicConfig) http.Header {
+	msg *router.Message, config *Config) http.Header {
 
 	headers := http.Header{}
 
@@ -180,7 +191,7 @@ func buildHeaders(
 }
 
 // buildData builds the message to send to sumologic.
-func buildData(msg *router.Message) *SumologicData {
+func buildData(msg *router.Message) *Data {
 	container := &ContainerData{
 		Source:   msg.Source,
 		Time:     msg.Time.Format(time.RFC3339),
@@ -189,7 +200,7 @@ func buildData(msg *router.Message) *SumologicData {
 		Image:    msg.Container.Config.Image,
 		Hostname: msg.Container.Config.Hostname,
 	}
-	return &SumologicData{
+	return &Data{
 		Container: container,
 		Message:   msg.Data,
 		// Sumologic supports 13 digit/UnixMilli in json messages.

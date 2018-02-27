@@ -9,7 +9,7 @@ before_install:
 
 script:
   - go test -race -coverprofile=coverage.txt -covermode=atomic
-  - gometalinter --tests --deadline=60s || true
+  - gometalinter --tests --deadline=60s
 
 after_success:
   - bash <(curl -s https://codecov.io/bash)
