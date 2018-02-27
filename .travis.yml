@@ -10,7 +10,6 @@ env:
 before_install:
 - sudo apt-get update
 - sudo apt-get install -qy -o Dpkg::Options::="--force-confold" docker-ce
-- cd docker
 install: []
 before_script:
 - cd docker
