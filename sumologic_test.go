@@ -2,53 +2,58 @@ package sumologic
 
 import (
 	"os"
-	"strings"
 	"testing"
 
 	docker "github.com/fsouza/go-dockerclient"
 	"github.com/gliderlabs/logspout/router"
+
+	"github.com/stretchr/testify/suite"
 )
 
-func Test_getopt_unset_envar_returns_default(t *testing.T) {
 
-	expectedValue := "foo"
+// Test suite machinery.
 
-	value := getopt("UNSET_ENV_VAR", "foo")
-	if !strings.EqualFold(expectedValue, value) {
-		t.Fatal("expected equal values")
-	}
-
+type TestSuite struct {
+	suite.Suite
+	cleanups []func()
 }
 
-func Test_getopt_set_envar_empty_returns_default(t *testing.T) {
-
-	os.Setenv("SET_ENV_VAR", "")
-	expectedValue := "foo"
-
-	value := getopt("SET_ENV_VAR", "foo")
-	if !strings.EqualFold(expectedValue, value) {
-		t.Fatal("expected equal values")
-	}
-
+func Test_TestSuite(t *testing.T) {
+	suite.Run(t, new(TestSuite))
 }
 
-func Test_getopt_set_envar_nonempty_returns_value(t *testing.T) {
-
-	os.Setenv("SET_ENV_VAR", "foo")
-	expectedValue := "foo"
-
-	value := getopt("SET_ENV_VAR", "bar")
-	if !strings.EqualFold(expectedValue, value) {
-		t.Fatal("expected equal values")
-	}
-
+func (ts *TestSuite) AddCleanup(f func()) {
+	ts.cleanups = append([]func(){f}, ts.cleanups...)
 }
 
-func Test_build_configs_with_env_vars(t *testing.T) {
+func (ts *TestSuite) TearDownTest() {
+	for _, f := range ts.cleanups { f() }
+}
 
+func (ts *TestSuite) Setenv(name string, value string) {
+	os.Setenv(name, value)
+	ts.AddCleanup(func() { os.Unsetenv(name) })
+}
+
+// Tests.
+
+func (ts *TestSuite) Test_getopt_unset_envar_returns_default() {
+	ts.EqualValues("foo", getopt("UNSET_ENV_VAR", "foo"))
+}
+
+func (ts *TestSuite) Test_getopt_set_envar_empty_returns_default() {
+	ts.Setenv("SET_ENV_VAR", "")
+	ts.EqualValues("foo", getopt("SET_ENV_VAR", "foo"))
+}
+
+func (ts *TestSuite)  Test_getopt_set_envar_nonempty_returns_value() {
+	ts.Setenv("SET_ENV_VAR", "foo")
+	ts.EqualValues("foo", getopt("SET_ENV_VAR", "bar"))
+}
+
+func (ts *TestSuite) Test_build_configs_with_env_vars() {
 	expectedEndpoint := "https://foo.collector.io/receiver/v1/http/Zm9vCg=="
-	os.Setenv("SUMOLOGIC_ENDPOINT", expectedEndpoint)
-	defer os.Unsetenv("SUMOLOGIC_ENDPOINT")
+	ts.Setenv("SUMOLOGIC_ENDPOINT", expectedEndpoint)
 	route := &router.Route{
 		ID:      "foo",
 		Address: "sumologic://",
@@ -56,14 +61,10 @@ func Test_build_configs_with_env_vars(t *testing.T) {
 	}
 
 	config := buildConfig(route)
-	if !strings.EqualFold(expectedEndpoint, config.endPoint) {
-		t.Fatal("expected equal endpoint addrs")
-	}
-
+	ts.Equal(expectedEndpoint, config.endPoint)
 }
 
-func Test_build_configs_without_env_vars(t *testing.T) {
-
+func (ts *TestSuite) Test_build_configs_without_env_vars() {
 	expectedEndpoint := "https://foo.collector.io/receiver/v1/http/Zm9vCg=="
 	route := &router.Route{
 		ID:      "foo",
@@ -72,49 +73,31 @@ func Test_build_configs_without_env_vars(t *testing.T) {
 	}
 
 	config := buildConfig(route)
-	if !strings.EqualFold(expectedEndpoint, config.endPoint) {
-		t.Fatal("expected equal endpoint addrs")
-	}
-
+	ts.Equal(expectedEndpoint, config.endPoint)
 }
 
-func Test_render_template_with_empty_string(t *testing.T) {
-
-	expectedValue := ""
+func (ts *TestSuite) Test_render_template_with_empty_string() {
 	msg := &router.Message{}
 	value, err := renderTemplate(msg, "")
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
-	if !strings.EqualFold(expectedValue, value) {
-		t.Fatal("expected equal values")
+	if ts.NoError(err) {
+		ts.Equal("", value)
 	}
 }
 
-func Test_render_template_with_non_empty_string(t *testing.T) {
-
-	expectedValue := "foo"
+func (ts *TestSuite) Test_render_template_with_non_empty_string() {
 	msg := &router.Message{}
 	value, err := renderTemplate(msg, "foo")
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
-	if !strings.EqualFold(expectedValue, value) {
-		t.Fatal("expected equal values")
+	if ts.NoError(err) {
+		ts.Equal("foo", value)
 	}
 }
 
-func Test_render_template_with_template_string(t *testing.T) {
-
-	expectedValue := "foo"
+func (ts *TestSuite) Test_render_template_with_template_string() {
 	msg := &router.Message{
 		Container: &docker.Container{Name: "foo"},
 	}
 	value, err := renderTemplate(msg, "{{.Container.Name}}")
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
-	if !strings.EqualFold(expectedValue, value) {
-		t.Fatal("expected equal values")
+	if ts.NoError(err) {
+		ts.Equal("foo", value)
 	}
 }
