@@ -1,12 +1,15 @@
 package sumologic
 
 import (
+	"bytes"
 	"os"
 	"testing"
 
 	docker "github.com/fsouza/go-dockerclient"
 	"github.com/gliderlabs/logspout/router"
 
+	"github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -35,6 +38,15 @@ func (ts *TestSuite) Setenv(name string, value string) {
 	ts.AddCleanup(func() { os.Unsetenv(name) })
 }
 
+func (ts *TestSuite) CaptureLogs() (*test.Hook, *bytes.Buffer){
+	origOut := logrus.StandardLogger().Out
+	hook := test.NewGlobal()
+	var buffer bytes.Buffer
+	logrus.SetOutput(&buffer)
+	ts.AddCleanup(func() { logrus.SetOutput(origOut) })
+	return hook, &buffer
+}
+
 // Tests.
 
 func (ts *TestSuite) Test_getopt_unset_envar_returns_default() {
@@ -49,6 +61,29 @@ func (ts *TestSuite) Test_getopt_set_envar_empty_returns_default() {
 func (ts *TestSuite)  Test_getopt_set_envar_nonempty_returns_value() {
 	ts.Setenv("SET_ENV_VAR", "foo")
 	ts.EqualValues("foo", getopt("SET_ENV_VAR", "bar"))
+}
+
+func (ts *TestSuite) Test_getintopt_unset_envar_returns_default() {
+	ts.EqualValues(1, getintopt("UNSET_ENV_VAR", 1))
+}
+
+func (ts *TestSuite) Test_getintopt_set_envar_empty_returns_default() {
+	ts.Setenv("SET_ENV_VAR", "")
+	ts.EqualValues(1, getintopt("SET_ENV_VAR", 1))
+}
+
+func (ts *TestSuite) Test_getintopt_set_envar_nonempty_returns_value() {
+	ts.Setenv("SET_ENV_VAR", "2")
+	ts.EqualValues(2, getintopt("SET_ENV_VAR", 1))
+}
+
+func (ts *TestSuite) Test_getintopt_set_envar_invalid_returns_default() {
+	hook, _ := ts.CaptureLogs()
+
+	ts.Setenv("SET_ENV_VAR", "seven")
+	ts.EqualValues(1, getintopt("SET_ENV_VAR", 1))
+	ts.Equal(logrus.ErrorLevel, hook.LastEntry().Level)
+	ts.Equal("Failed to parse", hook.LastEntry().Message)
 }
 
 func (ts *TestSuite) Test_build_configs_with_env_vars() {
