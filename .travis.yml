@@ -22,6 +22,6 @@ before_deploy:
 - docker login -u "$REGISTRY_USER" -p "$REGISTRY_PASSWORD"
 deploy:
   provider: script
-  script: ./deploy.sh
+  script: $TRAVIS_BUILD_DIR/docker/deploy.sh
   on:
     branch: master
