@@ -24,6 +24,9 @@ func Test_TestSuite(t *testing.T) {
 	suite.Run(t, new(TestSuite))
 }
 
+// AddCleanup schedules the given cleanup function to be run after the test.
+// Think of it like `defer`, except it applies to the whole test rather than
+// the specific function it appears in.
 func (ts *TestSuite) AddCleanup(f func()) {
 	ts.cleanups = append([]func(){f}, ts.cleanups...)
 }
@@ -34,18 +37,33 @@ func (ts *TestSuite) TearDownTest() {
 	}
 }
 
+// Setenv sets an environment variable for the duration of the test. It
+// immediately fails the test if it is unable to set the envvar.
 func (ts *TestSuite) Setenv(name string, value string) {
-	ts.NoError(os.Setenv(name, value))
+	ts.Require().NoError(os.Setenv(name, value))
 	ts.AddCleanup(func() { ts.NoError(os.Unsetenv(name)) })
 }
 
+// CaptureLogs sets up log capturing machinery. It also redirects the log
+// output to a buffer for the duration of the test to avoid spamming the
+// console with random logs entries.
 func (ts *TestSuite) CaptureLogs() (*test.Hook, *bytes.Buffer) {
+	// TODO: Remove the hook after the test?
 	origOut := logrus.StandardLogger().Out
 	hook := test.NewGlobal()
 	var buffer bytes.Buffer
 	logrus.SetOutput(&buffer)
 	ts.AddCleanup(func() { logrus.SetOutput(origOut) })
 	return hook, &buffer
+}
+
+// WithoutError accepts a (result, error) pair, immediately fails the test if
+// there is an error, and returns just the result if there is no error. It
+// accepts and returns the result value as an `interface{}`, so it may need to
+// be cast back to whatever type it should be afterwards.
+func (ts *TestSuite) WithoutError(result interface{}, err error) interface{} {
+	ts.Require().NoError(err)
+	return result
 }
 
 // Tests.
@@ -112,28 +130,51 @@ func (ts *TestSuite) Test_build_configs_without_env_vars() {
 	ts.Equal(expectedEndpoint, config.endPoint)
 }
 
+func (ts *TestSuite) Test_newAdapter_with_env_vars() {
+	expectedEndpoint := "https://foo.collector.io/receiver/v1/http/Zm9vCg=="
+	ts.Setenv("SUMOLOGIC_ENDPOINT", expectedEndpoint)
+	route := &router.Route{
+		ID:      "foo",
+		Address: "sumologic://",
+		Adapter: "sumologic",
+	}
+
+	adapter := ts.WithoutError(NewAdapter(route)).(*Adapter)
+	ts.Equal(route, adapter.route)
+	ts.Equal(expectedEndpoint, adapter.config.endPoint)
+	// TODO: More assertions?
+}
+
+func (ts *TestSuite) Test_NewAdapter_without_env_vars() {
+	expectedEndpoint := "https://foo.collector.io/receiver/v1/http/Zm9vCg=="
+	route := &router.Route{
+		ID:      "foo",
+		Address: "https://foo.collector.io/receiver/v1/http/Zm9vCg==",
+		Adapter: "sumologic",
+	}
+
+	adapter := ts.WithoutError(NewAdapter(route)).(*Adapter)
+	ts.Equal(route, adapter.route)
+	ts.Equal(expectedEndpoint, adapter.config.endPoint)
+	// TODO: More assertions?
+}
+
 func (ts *TestSuite) Test_render_template_with_empty_string() {
 	msg := &router.Message{}
-	value, err := renderTemplate(msg, "")
-	if ts.NoError(err) {
-		ts.Equal("", value)
-	}
+	value := ts.WithoutError(renderTemplate(msg, ""))
+	ts.Equal("", value)
 }
 
 func (ts *TestSuite) Test_render_template_with_non_empty_string() {
 	msg := &router.Message{}
-	value, err := renderTemplate(msg, "foo")
-	if ts.NoError(err) {
-		ts.Equal("foo", value)
-	}
+	value := ts.WithoutError(renderTemplate(msg, "foo"))
+	ts.Equal("foo", value)
 }
 
 func (ts *TestSuite) Test_render_template_with_template_string() {
 	msg := &router.Message{
 		Container: &docker.Container{Name: "foo"},
 	}
-	value, err := renderTemplate(msg, "{{.Container.Name}}")
-	if ts.NoError(err) {
-		ts.Equal("foo", value)
-	}
+	value := ts.WithoutError(renderTemplate(msg, "{{.Container.Name}}"))
+	ts.Equal("foo", value)
 }
