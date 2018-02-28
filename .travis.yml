@@ -1,9 +1,9 @@
 jobs:
   include:
+    # Build and test the go code.
     - language: go
 
-      go:
-        - "1.10"
+      go: "1.10"
 
       before_install:
         - go get github.com/alecthomas/gometalinter
@@ -21,16 +21,16 @@ jobs:
       after_success:
         - bash <(curl -s https://codecov.io/bash)
 
+    # Build the docker image.
     - sudo: required
       group: trusty_latest
       language: python
       services:
         - docker
       env:
-        global:
-          - IMAGE=praekeltfoundation/logspout-sumologic
-          - REGISTRY_USER=praekeltorgdeploy
-          - secure: pEOV9lQoxvCCWrDn+XiCkhMTPULJ9G2cFPr229n6YA6v8XLeC8jsfGJMmXtgdczPK79q6nnfZEr1EGZDcAK2dbkHGowkIXo096io65tCjsydUn2rGyajizePWXz4ycENIKeWcAxA7eUVhxRoRVY5Q4aTCHM+ZGzalBqdxFKdBDOEvok3FuDyLnwUZjVuM748295FGHbE/lz30NORfgAIkuWOEG16PlaIYutcnOWYHVLmvwfEkkZ/77eCWwymafZ2RNYn/l4WNr5W6mC4OqCDb90+tQ/o+VJyhJzy8FNzbZUecs7PXKKr8uzZhS6+L6KgwxLXRS4WOOxvTAKV3u9x7ByH8prvLWdhxuhfSSRcDFVGmrMWry/5WcSBmBtqORcbTo0ahv6eoR+C8IHZbZ2Hz5Oi0Y+OLFwXOcxF4wPabxJkQyeXyM+RgQ19l69TCi086ez3KHP38tUEr1owbAVYTM9BhjAQf5XBZchwNQqpyXzJsiueDEoelBSDfnSaqWR+F2SYXB/liuUBw9Z9W8nTNgjFb3GIyv4rxzsHPLn94sswc09tPsPSNabxVC+0/pHqXMTpzQ+NsyffXIjYifda+qWugCbLP60Vp0WWr+cE7TZwm42LOjmKOCV0ATtQNityfmxvdNLeSlX1nBxfv3mbJTybvZI8bQF1uOb456cqcI8=
+        - IMAGE=praekeltfoundation/logspout-sumologic
+        - REGISTRY_USER=praekeltorgdeploy
+        - secure: pEOV9lQoxvCCWrDn+XiCkhMTPULJ9G2cFPr229n6YA6v8XLeC8jsfGJMmXtgdczPK79q6nnfZEr1EGZDcAK2dbkHGowkIXo096io65tCjsydUn2rGyajizePWXz4ycENIKeWcAxA7eUVhxRoRVY5Q4aTCHM+ZGzalBqdxFKdBDOEvok3FuDyLnwUZjVuM748295FGHbE/lz30NORfgAIkuWOEG16PlaIYutcnOWYHVLmvwfEkkZ/77eCWwymafZ2RNYn/l4WNr5W6mC4OqCDb90+tQ/o+VJyhJzy8FNzbZUecs7PXKKr8uzZhS6+L6KgwxLXRS4WOOxvTAKV3u9x7ByH8prvLWdhxuhfSSRcDFVGmrMWry/5WcSBmBtqORcbTo0ahv6eoR+C8IHZbZ2Hz5Oi0Y+OLFwXOcxF4wPabxJkQyeXyM+RgQ19l69TCi086ez3KHP38tUEr1owbAVYTM9BhjAQf5XBZchwNQqpyXzJsiueDEoelBSDfnSaqWR+F2SYXB/liuUBw9Z9W8nTNgjFb3GIyv4rxzsHPLn94sswc09tPsPSNabxVC+0/pHqXMTpzQ+NsyffXIjYifda+qWugCbLP60Vp0WWr+cE7TZwm42LOjmKOCV0ATtQNityfmxvdNLeSlX1nBxfv3mbJTybvZI8bQF1uOb456cqcI8=
       install: []
       before_script:
         - cd docker
