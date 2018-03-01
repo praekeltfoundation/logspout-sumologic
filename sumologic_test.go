@@ -178,3 +178,21 @@ func (ts *TestSuite) Test_renderTemplate_with_template_string() {
 	value := ts.WithoutError(renderTemplate(msg, "{{.Container.Name}}"))
 	ts.Equal("foo", value)
 }
+
+func (ts *TestSuite) Test_renderTemplate_with_bad_template_string() {
+	msg := &router.Message{}
+	value, err := renderTemplate(msg, "{{")
+	ts.EqualError(err,
+		"Couldn't parse sumologic source template. template: "+
+			"info:1: unexpected unclosed action in command")
+	ts.Equal("", value)
+}
+
+func (ts *TestSuite) Test_renderTemplate_with_render_error() {
+	msg := &router.Message{}
+	value, err := renderTemplate(msg, "{{.Nothing}}")
+	ts.EqualError(err,
+		"template: info:1:2: executing \"info\" at <.Nothing>: "+
+			"can't evaluate field Nothing in type *router.Message")
+	ts.Equal("", value)
+}
