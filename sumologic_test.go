@@ -47,6 +47,7 @@ func (ts *TestSuite) TearDownTest() {
 // Setenv sets an environment variable for the duration of the test. It
 // immediately fails the test if it is unable to set the envvar.
 func (ts *TestSuite) Setenv(name string, value string) {
+	ts.T().Helper()
 	ts.Require().NoError(os.Setenv(name, value))
 	ts.AddCleanup(func() { ts.NoError(os.Unsetenv(name)) })
 }
@@ -69,6 +70,7 @@ func (ts *TestSuite) CaptureLogs() (*test.Hook, *bytes.Buffer) {
 // accepts and returns the result value as an `interface{}`, so it may need to
 // be cast back to whatever type it should be afterwards.
 func (ts *TestSuite) WithoutError(result interface{}, err error) interface{} {
+	ts.T().Helper()
 	ts.Require().NoError(err)
 	return result
 }
@@ -76,6 +78,7 @@ func (ts *TestSuite) WithoutError(result interface{}, err error) interface{} {
 // ReadJSON reads a JSON object from an io.Reader and returns a jsonobj,
 // immediately failing the test if there is an error.
 func (ts *TestSuite) ReadJSON(reader io.Reader) jsonobj {
+	ts.T().Helper()
 	var obj jsonobj
 	ts.Require().NoError(json.NewDecoder(reader).Decode(&obj))
 	return obj
