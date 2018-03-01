@@ -2,6 +2,7 @@ package sumologic
 
 import (
 	"bytes"
+	"net/http"
 	"os"
 	"testing"
 
@@ -105,6 +106,11 @@ func (ts *TestSuite) Test_getintopt_set_envar_invalid_returns_default() {
 	ts.Equal("Failed to parse", hook.LastEntry().Message)
 }
 
+func (ts *TestSuite) Test_buildConfig_with_empty_route() {
+	config := buildConfig(&router.Route{})
+	ts.Equal("", config.endPoint)
+}
+
 func (ts *TestSuite) Test_buildConfig_with_env_vars() {
 	expectedEndpoint := "https://foo.collector.io/receiver/v1/http/Zm9vCg=="
 	ts.Setenv("SUMOLOGIC_ENDPOINT", expectedEndpoint)
@@ -190,10 +196,10 @@ func (ts *TestSuite) Test_renderTemplate_with_bad_template_string() {
 
 func (ts *TestSuite) Test_renderTemplate_with_render_error() {
 	msg := &router.Message{}
-	value, err := renderTemplate(msg, "{{.Nothing}}")
+	value, err := renderTemplate(msg, "{{.Container.Name}}")
 	ts.EqualError(err,
-		"template: info:1:2: executing \"info\" at <.Nothing>: "+
-			"can't evaluate field Nothing in type *router.Message")
+		"template: info:1:12: executing \"info\" at <.Container.Name>: "+
+			"can't evaluate field Name in type *docker.Container")
 	ts.Equal("", value)
 }
 
@@ -220,4 +226,43 @@ func (ts *TestSuite) Test_buildData_with_simple_message() {
 	data := buildData(msg)
 	ts.Equal("foo", data.Container.Name)
 	ts.Equal("Some data.", data.Message)
+}
+
+func (ts *TestSuite) Test_buildHeaders_with_empty_message() {
+	msg := &router.Message{}
+	config := buildConfig(&router.Route{})
+	headers := buildHeaders(msg, config)
+	ts.Equal(http.Header{}, headers)
+}
+
+func (ts *TestSuite) Test_buildHeaders_with_empty_container() {
+	expectedHeaders := http.Header{}
+	expectedHeaders.Add("X-Sumo-Name", "")
+
+	msg := &router.Message{
+		Container: &docker.Container{},
+	}
+	config := buildConfig(&router.Route{})
+	headers := buildHeaders(msg, config)
+	ts.Equal(expectedHeaders, headers)
+}
+
+func (ts *TestSuite) Test_buildHeaders_with_all_fields() {
+	expectedHeaders := http.Header{}
+	expectedHeaders.Add("X-Sumo-Name", "foo")
+	expectedHeaders.Add("X-Sumo-Host", "example.com")
+	expectedHeaders.Add("X-Sumo-Category", "feline")
+
+	ts.Setenv("SUMOLOGIC_SOURCE_CATEGORY", "feline")
+	msg := &router.Message{
+		Container: &docker.Container{
+			Name: "foo",
+			Config: &docker.Config{
+				Hostname: "example.com",
+			},
+		},
+	}
+	config := buildConfig(&router.Route{})
+	headers := buildHeaders(msg, config)
+	ts.Equal(expectedHeaders, headers)
 }
