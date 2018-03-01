@@ -2,17 +2,23 @@ package sumologic
 
 import (
 	"bytes"
+	"encoding/json"
+	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 
 	docker "github.com/fsouza/go-dockerclient"
 	"github.com/gliderlabs/logspout/router"
-
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/suite"
 )
+
+// jsonobj is an alias for type a JSON object gets unmarshalled into, because
+// building nested map[string]interface{}{ ... } literals is awful.
+type jsonobj = map[string]interface{}
 
 // Test suite machinery.
 
@@ -65,6 +71,14 @@ func (ts *TestSuite) CaptureLogs() (*test.Hook, *bytes.Buffer) {
 func (ts *TestSuite) WithoutError(result interface{}, err error) interface{} {
 	ts.Require().NoError(err)
 	return result
+}
+
+// ReadJSON reads a JSON object from an io.Reader and returns a jsonobj,
+// immediately failing the test if there is an error.
+func (ts *TestSuite) ReadJSON(reader io.Reader) jsonobj {
+	var obj jsonobj
+	ts.Require().NoError(json.NewDecoder(reader).Decode(&obj))
+	return obj
 }
 
 // Tests.
@@ -265,4 +279,46 @@ func (ts *TestSuite) Test_buildHeaders_with_all_fields() {
 	config := buildConfig(&router.Route{})
 	headers := buildHeaders(msg, config)
 	ts.Equal(expectedHeaders, headers)
+}
+
+func (ts *TestSuite) Test_sendLog_simple_message() {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts.Equal([]string{"box"}, r.Header["X-Sumo-Name"])
+		ts.Equal([]string{"example.com"}, r.Header["X-Sumo-Host"])
+		body := ts.ReadJSON(r.Body)
+		ts.Equal(jsonobj{
+			"message": "Some data.",
+			// The timestamp is different every time, so just get it from the
+			// body JSON.
+			"timestamp": body["timestamp"],
+			"container": jsonobj{
+				"docker_name":     "box",
+				"docker_hostname": "example.com",
+				"docker_id":       "",
+				"docker_image":    "",
+				"time":            "0001-01-01T00:00:00Z",
+				"source":          "",
+			},
+		}, body)
+		// No response body.
+	}))
+	defer server.Close()
+
+	adapter := ts.WithoutError(NewAdapter(&router.Route{
+		ID:      "foo",
+		Address: server.URL,
+		Adapter: "sumologic",
+	})).(*Adapter)
+
+	msg := &router.Message{
+		Data: "Some data.",
+		Container: &docker.Container{
+			Name: "box",
+			Config: &docker.Config{
+				Hostname: "example.com",
+			},
+		},
+	}
+
+	adapter.sendLog(msg)
 }
