@@ -105,7 +105,7 @@ func (ts *TestSuite) Test_getintopt_set_envar_invalid_returns_default() {
 	ts.Equal("Failed to parse", hook.LastEntry().Message)
 }
 
-func (ts *TestSuite) Test_build_configs_with_env_vars() {
+func (ts *TestSuite) Test_buildConfig_with_env_vars() {
 	expectedEndpoint := "https://foo.collector.io/receiver/v1/http/Zm9vCg=="
 	ts.Setenv("SUMOLOGIC_ENDPOINT", expectedEndpoint)
 	route := &router.Route{
@@ -118,7 +118,7 @@ func (ts *TestSuite) Test_build_configs_with_env_vars() {
 	ts.Equal(expectedEndpoint, config.endPoint)
 }
 
-func (ts *TestSuite) Test_build_configs_without_env_vars() {
+func (ts *TestSuite) Test_buildConfig_without_env_vars() {
 	expectedEndpoint := "https://foo.collector.io/receiver/v1/http/Zm9vCg=="
 	route := &router.Route{
 		ID:      "foo",
@@ -130,7 +130,7 @@ func (ts *TestSuite) Test_build_configs_without_env_vars() {
 	ts.Equal(expectedEndpoint, config.endPoint)
 }
 
-func (ts *TestSuite) Test_newAdapter_with_env_vars() {
+func (ts *TestSuite) Test_NewAdapter_with_env_vars() {
 	expectedEndpoint := "https://foo.collector.io/receiver/v1/http/Zm9vCg=="
 	ts.Setenv("SUMOLOGIC_ENDPOINT", expectedEndpoint)
 	route := &router.Route{
@@ -159,19 +159,19 @@ func (ts *TestSuite) Test_NewAdapter_without_env_vars() {
 	// TODO: More assertions?
 }
 
-func (ts *TestSuite) Test_render_template_with_empty_string() {
+func (ts *TestSuite) Test_renderTemplate_with_empty_string() {
 	msg := &router.Message{}
 	value := ts.WithoutError(renderTemplate(msg, ""))
 	ts.Equal("", value)
 }
 
-func (ts *TestSuite) Test_render_template_with_non_empty_string() {
+func (ts *TestSuite) Test_renderTemplate_with_non_empty_string() {
 	msg := &router.Message{}
 	value := ts.WithoutError(renderTemplate(msg, "foo"))
 	ts.Equal("foo", value)
 }
 
-func (ts *TestSuite) Test_render_template_with_template_string() {
+func (ts *TestSuite) Test_renderTemplate_with_template_string() {
 	msg := &router.Message{
 		Container: &docker.Container{Name: "foo"},
 	}
