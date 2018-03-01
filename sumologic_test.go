@@ -196,3 +196,28 @@ func (ts *TestSuite) Test_renderTemplate_with_render_error() {
 			"can't evaluate field Nothing in type *router.Message")
 	ts.Equal("", value)
 }
+
+func (ts *TestSuite) Test_buildData_with_empty_message() {
+	msg := &router.Message{}
+	ts.Panics(func() { buildData(msg) })
+}
+
+func (ts *TestSuite) Test_buildData_with_empty_container() {
+	msg := &router.Message{
+		Container: &docker.Container{},
+	}
+	ts.Panics(func() { buildData(msg) })
+}
+
+func (ts *TestSuite) Test_buildData_with_simple_message() {
+	msg := &router.Message{
+		Data: "Some data.",
+		Container: &docker.Container{
+			Name:   "foo",
+			Config: &docker.Config{},
+		},
+	}
+	data := buildData(msg)
+	ts.Equal("foo", data.Container.Name)
+	ts.Equal("Some data.", data.Message)
+}
