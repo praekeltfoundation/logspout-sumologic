@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	docker "github.com/fsouza/go-dockerclient"
@@ -82,6 +83,45 @@ func (ts *TestSuite) ReadJSON(reader io.Reader) jsonobj {
 	var obj jsonobj
 	ts.Require().NoError(json.NewDecoder(reader).Decode(&obj))
 	return obj
+}
+
+// RequestData holds expected request data for FakeSumo.
+type RequestData struct {
+	Headers map[string]string
+	Body    jsonobj
+}
+
+// FakeSumo starts a fake Sumo Logic server that expects a sequence of requests
+// matching the provided RequestData slice.
+func (ts *TestSuite) FakeSumo(expectedRequestData []RequestData) *httptest.Server {
+	requestIndex := 0
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		erd := expectedRequestData[requestIndex]
+		requestIndex++
+		ts.Equal(erd.Headers, extractExpectedHeaders(erd.Headers, r.Header))
+		body := ts.ReadJSON(r.Body)
+		// NOTE: This mutates the body map because it's too hard not to. :-(
+		if erd.Body["timestamp"] == nil {
+			erd.Body["timestamp"] = body["timestamp"]
+		}
+		ts.Equal(erd.Body, body)
+	})
+	server := httptest.NewServer(handler)
+	ts.AddCleanup(server.Close)
+	return server
+}
+
+func extractExpectedHeaders(
+	expected map[string]string, actual map[string][]string,
+) map[string]string {
+	result := map[string]string{}
+	for header, values := range actual {
+		_, inExpected := expected[header]
+		if inExpected || strings.HasPrefix(header, "X-Sumo-") {
+			result[header] = strings.Join(values, ",")
+		}
+	}
+	return result
 }
 
 // Tests.
@@ -285,27 +325,26 @@ func (ts *TestSuite) Test_buildHeaders_with_all_fields() {
 }
 
 func (ts *TestSuite) Test_sendLog_simple_message() {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ts.Equal([]string{"box"}, r.Header["X-Sumo-Name"])
-		ts.Equal([]string{"example.com"}, r.Header["X-Sumo-Host"])
-		body := ts.ReadJSON(r.Body)
-		ts.Equal(jsonobj{
-			"message": "Some data.",
-			// The timestamp is different every time, so just get it from the
-			// body JSON.
-			"timestamp": body["timestamp"],
-			"container": jsonobj{
-				"docker_name":     "box",
-				"docker_hostname": "example.com",
-				"docker_id":       "",
-				"docker_image":    "",
-				"time":            "0001-01-01T00:00:00Z",
-				"source":          "",
+	expectedRequestData := []RequestData{
+		{
+			Headers: map[string]string{
+				"X-Sumo-Name": "box",
+				"X-Sumo-Host": "example.com",
 			},
-		}, body)
-		// No response body.
-	}))
-	defer server.Close()
+			Body: jsonobj{
+				"message": "Some data.",
+				"container": jsonobj{
+					"docker_name":     "box",
+					"docker_hostname": "example.com",
+					"docker_id":       "",
+					"docker_image":    "",
+					"time":            "0001-01-01T00:00:00Z",
+					"source":          "",
+				},
+			},
+		},
+	}
+	server := ts.FakeSumo(expectedRequestData)
 
 	adapter := ts.WithoutError(NewAdapter(&router.Route{
 		ID:      "foo",
