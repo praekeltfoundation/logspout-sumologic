@@ -101,12 +101,7 @@ func (ts *TestSuite) FakeSumo(expectedRequestData []RequestData) (*Adapter, func
 	handler, counter := ts.mkHandler(expectedRequestData)
 	server := httptest.NewServer(handler)
 	ts.AddCleanup(server.Close)
-
-	return ts.WithoutError(NewAdapter(&router.Route{
-		ID:      "foo",
-		Address: server.URL,
-		Adapter: "sumologic",
-	})).(*Adapter), counter
+	return ts.mkAdapter(&router.Route{Address: server.URL}), counter
 }
 
 func (ts *TestSuite) mkHandler(expectedRequestData []RequestData) (http.Handler, func() int) {
@@ -120,10 +115,6 @@ func (ts *TestSuite) mkHandler(expectedRequestData []RequestData) (http.Handler,
 			mux.Unlock()
 			ts.Equal(erd.Headers, extractExpectedHeaders(erd.Headers, r.Header))
 			body := ts.ReadJSON(r.Body)
-			// NOTE: This mutates the body map because it's too hard not to. :-(
-			if erd.Body["timestamp"] == nil {
-				erd.Body["timestamp"] = body["timestamp"]
-			}
 			ts.Equal(erd.Body, body)
 		}), func() int {
 			mux.Lock()
@@ -143,6 +134,15 @@ func extractExpectedHeaders(
 		}
 	}
 	return result
+}
+
+func (ts *TestSuite) mkAdapter(router *router.Route) *Adapter {
+	return ts.WithoutError(NewAdapter(router)).(*Adapter)
+}
+
+func mkTime(secondsAfterBase time.Duration) time.Time {
+	t := time.Date(2018, time.January, 2, 13, 0, 0, 0, time.UTC)
+	return t.Add(secondsAfterBase * time.Second)
 }
 
 // Tests.
@@ -375,10 +375,12 @@ func (ts *TestSuite) Test_sendLog_simple_message() {
 				"X-Sumo-Host": "example.com",
 			},
 			Body: mkExpectedBody(jsonobj{
-				"message": "Some data.",
+				"message":   "Some data.",
+				"timestamp": "1514898000000",
 				"container": jsonobj{
 					"docker_name":     "box",
 					"docker_hostname": "example.com",
+					"time":            "2018-01-02T13:00:00Z",
 				},
 			}),
 		},
@@ -387,6 +389,7 @@ func (ts *TestSuite) Test_sendLog_simple_message() {
 
 	msg := &router.Message{
 		Data: "Some data.",
+		Time: mkTime(0),
 		Container: &docker.Container{
 			Name: "box",
 			Config: &docker.Config{
@@ -397,6 +400,22 @@ func (ts *TestSuite) Test_sendLog_simple_message() {
 
 	adapter.sendLog(msg)
 	ts.Equal(len(expectedRequestData), requestCounter())
+}
+
+func (ts *TestSuite) Test_sendLog_no_server() {
+	hook, _ := ts.CaptureLogs()
+
+	adapter := ts.mkAdapter(&router.Route{})
+
+	msg := &router.Message{
+		Container: &docker.Container{
+			Config: &docker.Config{},
+		},
+	}
+
+	adapter.sendLog(msg)
+	ts.Equal(logrus.ErrorLevel, hook.LastEntry().Level)
+	ts.Equal("Failed to send log to Sumologic", hook.LastEntry().Message)
 }
 
 func (ts *TestSuite) Test_Stream_empty_message() {
@@ -433,7 +452,12 @@ func (ts *TestSuite) Test_Stream_two_messages() {
 				"X-Sumo-Name": "",
 				"X-Sumo-Host": "",
 			},
-			Body: mkExpectedBody(jsonobj{}),
+			Body: mkExpectedBody(jsonobj{
+				"timestamp": "1514898000000",
+				"container": jsonobj{
+					"time": "2018-01-02T13:00:00Z",
+				},
+			}),
 		},
 		{
 			Headers: map[string]string{
@@ -441,10 +465,12 @@ func (ts *TestSuite) Test_Stream_two_messages() {
 				"X-Sumo-Host": "example.com",
 			},
 			Body: mkExpectedBody(jsonobj{
-				"message": "Some data.",
+				"message":   "Some data.",
+				"timestamp": "1514898010000",
 				"container": jsonobj{
 					"docker_name":     "box",
 					"docker_hostname": "example.com",
+					"time":            "2018-01-02T13:00:10Z",
 				},
 			}),
 		},
@@ -455,13 +481,18 @@ func (ts *TestSuite) Test_Stream_two_messages() {
 	go adapter.Stream(ch)
 
 	ch <- &router.Message{
+		Time: mkTime(0),
 		Container: &docker.Container{
 			Config: &docker.Config{},
 		},
 	}
 
+	// Sleep a bit to encourage consistent ordering.
+	time.Sleep(10 * time.Millisecond)
+
 	ch <- &router.Message{
 		Data: "Some data.",
+		Time: mkTime(10),
 		Container: &docker.Container{
 			Name: "box",
 			Config: &docker.Config{
@@ -503,7 +534,8 @@ func mergeJSONs(objs ...jsonobj) jsonobj {
 
 func mkExpectedBody(fields jsonobj) jsonobj {
 	dfault := jsonobj{
-		"message": "",
+		"message":   "",
+		"timestamp": "-6795364578871",
 		"container": jsonobj{
 			"docker_name":     "",
 			"docker_hostname": "",
