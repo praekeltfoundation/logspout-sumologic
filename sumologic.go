@@ -162,7 +162,6 @@ func closeBody(req *http.Response) {
 	}
 }
 
-
 // buildHeaders creates a set of Sumologic classification headers,
 // these header values are derived from env vars and/or container properties,
 // then renderTemplate is called to compile for e.g {{.Container.Name}}
