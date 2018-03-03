@@ -9,7 +9,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"reflect"
-	"strings"
 	"testing"
 	"time"
 
@@ -124,19 +123,6 @@ func (ts *TestSuite) mkHandler(requests chan *RequestData) http.Handler {
 			Body:    ts.ReadJSON(r.Body),
 		}
 	})
-}
-
-func extractExpectedHeaders(
-	expected map[string]string, actual map[string][]string,
-) map[string]string {
-	result := map[string]string{}
-	for header, values := range actual {
-		_, inExpected := expected[header]
-		if inExpected || strings.HasPrefix(header, "X-Sumo-") {
-			result[header] = strings.Join(values, ",")
-		}
-	}
-	return result
 }
 
 func (ts *TestSuite) mkAdapter(router *router.Route) *Adapter {
