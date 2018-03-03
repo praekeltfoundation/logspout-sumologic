@@ -141,7 +141,6 @@ OUTER:
 		found := false
 		for h, v := range r.Headers {
 			if v != actual.Headers[h] {
-				found = false
 				continue OUTER
 			}
 			found = true
