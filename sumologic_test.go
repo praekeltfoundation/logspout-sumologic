@@ -149,7 +149,8 @@ OUTER:
 			return &r, nil
 		}
 	}
-	return &RequestData{}, fmt.Errorf("Could not find request data.")
+	return &RequestData{}, fmt.Errorf(
+		"Could not find request data in expected requests")
 }
 
 func (ts *TestSuite) verifyExpectedRequests(expectedRequests []RequestData, requests chan *RequestData) {
