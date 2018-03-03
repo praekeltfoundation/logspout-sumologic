@@ -390,7 +390,7 @@ func (ts *TestSuite) Test_sendLog_empty_message() {
 			Body: mkExpectedBody(jsonobj{}),
 		},
 	}
-	requests := make(chan *RequestData, 2)
+	requests := make(chan *RequestData, len(expectedRequestData))
 	adapter := ts.FakeSumo(requests)
 
 	msg := &router.Message{
@@ -421,7 +421,7 @@ func (ts *TestSuite) Test_sendLog_simple_message() {
 			}),
 		},
 	}
-	requests := make(chan *RequestData, 2)
+	requests := make(chan *RequestData, len(expectedRequestData))
 	adapter := ts.FakeSumo(requests)
 
 	msg := &router.Message{
@@ -465,7 +465,7 @@ func (ts *TestSuite) Test_Stream_empty_message() {
 			Body: mkExpectedBody(jsonobj{}),
 		},
 	}
-	requests := make(chan *RequestData, 1)
+	requests := make(chan *RequestData, len(expectedRequestData))
 	adapter := ts.FakeSumo(requests)
 
 	ch := make(chan *router.Message)
@@ -511,7 +511,7 @@ func (ts *TestSuite) Test_Stream_two_messages() {
 			}),
 		},
 	}
-	requests := make(chan *RequestData, 2)
+	requests := make(chan *RequestData, len(expectedRequestData))
 	adapter := ts.FakeSumo(requests)
 
 	ch := make(chan *router.Message)
