@@ -159,9 +159,6 @@ OUTER:
 			}
 			found = true
 		}
-		if r.Body["timestamp"] == nil {
-			r.Body["timestamp"] = actual.Body["timestamp"]
-		}
 		if found && reflect.DeepEqual(r.Body, actual.Body) {
 			return &r, nil
 		}
