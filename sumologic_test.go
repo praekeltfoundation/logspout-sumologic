@@ -3,12 +3,13 @@ package sumologic
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"reflect"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -97,30 +98,32 @@ type RequestData struct {
 // matching the provided RequestData slice, then returns an Adapter pointing at
 // that server and a function that returns the number of requests consumed so
 // far.
-func (ts *TestSuite) FakeSumo(expectedRequestData []RequestData) (*Adapter, func() int) {
-	handler, counter := ts.mkHandler(expectedRequestData)
+func (ts *TestSuite) FakeSumo(requests chan *RequestData) *Adapter {
+	handler := ts.mkHandler(requests)
 	server := httptest.NewServer(handler)
 	ts.AddCleanup(server.Close)
-	return ts.mkAdapter(&router.Route{Address: server.URL}), counter
+
+	return ts.WithoutError(NewAdapter(&router.Route{
+		ID:      "foo",
+		Address: server.URL,
+		Adapter: "sumologic",
+	})).(*Adapter)
 }
 
-func (ts *TestSuite) mkHandler(expectedRequestData []RequestData) (http.Handler, func() int) {
-	// *sigh* shared-memory concurrency.
-	mux := sync.Mutex{}
-	requestIndex := 0
+func (ts *TestSuite) mkHandler(requests chan *RequestData) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			mux.Lock()
-			erd := expectedRequestData[requestIndex]
-			requestIndex++
-			mux.Unlock()
-			ts.Equal(erd.Headers, extractExpectedHeaders(erd.Headers, r.Header))
-			body := ts.ReadJSON(r.Body)
-			ts.Equal(erd.Body, body)
-		}), func() int {
-			mux.Lock()
-			defer mux.Unlock()
-			return requestIndex
+
+		headers := make(map[string]string)
+
+		for header, values := range r.Header {
+			headers[header] = string(values[0])
 		}
+
+		requests <- &RequestData{
+			Headers: headers,
+			Body:    ts.ReadJSON(r.Body),
+		}
+	})
 }
 
 func extractExpectedHeaders(
@@ -143,6 +146,38 @@ func (ts *TestSuite) mkAdapter(router *router.Route) *Adapter {
 func mkTime(secondsAfterBase time.Duration) time.Time {
 	t := time.Date(2018, time.January, 2, 13, 0, 0, 0, time.UTC)
 	return t.Add(secondsAfterBase * time.Second)
+}
+
+func findRequestData(expected []RequestData, actual *RequestData) (*RequestData, error) {
+OUTER:
+	for _, r := range expected {
+		found := false
+		for h, v := range r.Headers {
+			if v != actual.Headers[h] {
+				found = false
+				continue OUTER
+			}
+			found = true
+		}
+		if r.Body["timestamp"] == nil {
+			r.Body["timestamp"] = actual.Body["timestamp"]
+		}
+		if found && reflect.DeepEqual(r.Body, actual.Body) {
+			return &r, nil
+		}
+	}
+	return &RequestData{}, fmt.Errorf("Could not find request data.")
+}
+
+func (ts *TestSuite) verifyExpectedRequests(expectedRequests []RequestData, requests chan *RequestData) {
+	for i := 0; i < len(expectedRequests); i++ {
+		select {
+		case req := <-requests:
+			ts.WithoutError(findRequestData(expectedRequests, req))
+		case <-time.After(100 * time.Millisecond):
+			ts.Fail("Timeout waiting for requests.")
+		}
+	}
 }
 
 // Tests.
@@ -355,7 +390,8 @@ func (ts *TestSuite) Test_sendLog_empty_message() {
 			Body: mkExpectedBody(jsonobj{}),
 		},
 	}
-	adapter, requestCounter := ts.FakeSumo(expectedRequestData)
+	requests := make(chan *RequestData, 2)
+	adapter := ts.FakeSumo(requests)
 
 	msg := &router.Message{
 		Container: &docker.Container{
@@ -364,7 +400,7 @@ func (ts *TestSuite) Test_sendLog_empty_message() {
 	}
 
 	adapter.sendLog(msg)
-	ts.Equal(len(expectedRequestData), requestCounter())
+	ts.verifyExpectedRequests(expectedRequestData, requests)
 }
 
 func (ts *TestSuite) Test_sendLog_simple_message() {
@@ -385,7 +421,8 @@ func (ts *TestSuite) Test_sendLog_simple_message() {
 			}),
 		},
 	}
-	adapter, requestCounter := ts.FakeSumo(expectedRequestData)
+	requests := make(chan *RequestData, 2)
+	adapter := ts.FakeSumo(requests)
 
 	msg := &router.Message{
 		Data: "Some data.",
@@ -399,7 +436,7 @@ func (ts *TestSuite) Test_sendLog_simple_message() {
 	}
 
 	adapter.sendLog(msg)
-	ts.Equal(len(expectedRequestData), requestCounter())
+	ts.verifyExpectedRequests(expectedRequestData, requests)
 }
 
 func (ts *TestSuite) Test_sendLog_no_server() {
@@ -428,7 +465,8 @@ func (ts *TestSuite) Test_Stream_empty_message() {
 			Body: mkExpectedBody(jsonobj{}),
 		},
 	}
-	adapter, requestCounter := ts.FakeSumo(expectedRequestData)
+	requests := make(chan *RequestData, 1)
+	adapter := ts.FakeSumo(requests)
 
 	ch := make(chan *router.Message)
 	go adapter.Stream(ch)
@@ -440,9 +478,7 @@ func (ts *TestSuite) Test_Stream_empty_message() {
 	}
 
 	close(ch)
-	// Sleep a bit so async sendLog()s can finish.
-	time.Sleep(100 * time.Millisecond)
-	ts.Equal(len(expectedRequestData), requestCounter())
+	ts.verifyExpectedRequests(expectedRequestData, requests)
 }
 
 func (ts *TestSuite) Test_Stream_two_messages() {
@@ -475,7 +511,8 @@ func (ts *TestSuite) Test_Stream_two_messages() {
 			}),
 		},
 	}
-	adapter, requestCounter := ts.FakeSumo(expectedRequestData)
+	requests := make(chan *RequestData, 2)
+	adapter := ts.FakeSumo(requests)
 
 	ch := make(chan *router.Message)
 	go adapter.Stream(ch)
@@ -486,9 +523,6 @@ func (ts *TestSuite) Test_Stream_two_messages() {
 			Config: &docker.Config{},
 		},
 	}
-
-	// Sleep a bit to encourage consistent ordering.
-	time.Sleep(10 * time.Millisecond)
 
 	ch <- &router.Message{
 		Data: "Some data.",
@@ -502,9 +536,7 @@ func (ts *TestSuite) Test_Stream_two_messages() {
 	}
 
 	close(ch)
-	// Sleep a bit so async sendLog()s can finish.
-	time.Sleep(100 * time.Millisecond)
-	ts.Equal(len(expectedRequestData), requestCounter())
+	ts.verifyExpectedRequests(expectedRequestData, requests)
 }
 
 // Some HTTP test helper things.
