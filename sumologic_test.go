@@ -88,7 +88,7 @@ func (ts *TestSuite) ReadJSON(reader io.Reader) jsonobj {
 	return obj
 }
 
-// RequestData holds expected request data for FakeSumo.
+// RequestData holds expected/actual request data for FakeSumo.
 type RequestData struct {
 	Headers map[string]string
 	Body    jsonobj
