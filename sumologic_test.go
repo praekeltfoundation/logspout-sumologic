@@ -103,11 +103,11 @@ func (ts *TestSuite) FakeSumo(requests chan *RequestData) *Adapter {
 	server := httptest.NewServer(handler)
 	ts.AddCleanup(server.Close)
 
-	return ts.WithoutError(NewAdapter(&router.Route{
+	return ts.mkAdapter(&router.Route{
 		ID:      "foo",
 		Address: server.URL,
 		Adapter: "sumologic",
-	})).(*Adapter)
+	})
 }
 
 func (ts *TestSuite) mkHandler(requests chan *RequestData) http.Handler {
