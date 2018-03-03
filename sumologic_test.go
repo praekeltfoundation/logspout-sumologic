@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -115,7 +116,7 @@ func (ts *TestSuite) mkHandler(requests chan *RequestData) http.Handler {
 		headers := make(map[string]string)
 
 		for header, values := range r.Header {
-			headers[header] = string(values[0])
+			headers[header] = strings.Join(values, ",")
 		}
 
 		requests <- &RequestData{
