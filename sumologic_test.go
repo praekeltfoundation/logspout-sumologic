@@ -135,18 +135,21 @@ func mkTime(secondsAfterBase time.Duration) time.Time {
 	return t.Add(secondsAfterBase * time.Second)
 }
 
-func findRequestData(expected []RequestData, actual *RequestData) (*RequestData, error) {
-OUTER:
-	for _, r := range expected {
-		found := false
-		for h, v := range r.Headers {
-			if v != actual.Headers[h] {
-				continue OUTER
-			}
-			found = true
+func requestHeadersMatch(expected *RequestData, actual *RequestData) bool {
+	for header, value := range expected.Headers {
+		if !strings.EqualFold(value, actual.Headers[header]) {
+			return false
 		}
-		if found && reflect.DeepEqual(r.Body, actual.Body) {
-			return &r, nil
+	}
+	return true
+}
+
+func findRequestData(expected []RequestData, actual *RequestData) (*RequestData, error) {
+	for _, req := range expected {
+		headersMatch := requestHeadersMatch(&req, actual)
+		bodyMatch := reflect.DeepEqual(req.Body, actual.Body)
+		if headersMatch && bodyMatch {
+			return &req, nil
 		}
 	}
 	return &RequestData{}, fmt.Errorf(
