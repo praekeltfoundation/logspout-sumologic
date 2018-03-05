@@ -94,10 +94,9 @@ type RequestData struct {
 	Body    jsonobj
 }
 
-// FakeSumo starts a fake Sumo Logic server that expects a sequence of requests
-// matching the provided RequestData slice, then returns an Adapter pointing at
-// that server and a function that returns the number of requests consumed so
-// far.
+// FakeSumo starts a fake Sumo Logic server that expects a requests channel,
+// then returns an Adapter pointing at that server, the requests channel is
+// passed onto the handler which pushes requests recieved to it.
 func (ts *TestSuite) FakeSumo(requests chan *RequestData) *Adapter {
 	handler := ts.mkHandler(requests)
 	server := httptest.NewServer(handler)
