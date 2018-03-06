@@ -3,12 +3,10 @@ package sumologic
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +15,7 @@ import (
 	"github.com/gliderlabs/logspout/router"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -115,7 +114,9 @@ func (ts *TestSuite) mkHandler(requests chan *RequestData) http.Handler {
 		headers := make(map[string]string)
 
 		for header, values := range r.Header {
-			headers[header] = strings.Join(values, ",")
+			if strings.HasPrefix(header, "X-Sumo-") {
+				headers[header] = strings.Join(values, ",")
+			}
 		}
 
 		requests <- &RequestData{
@@ -134,34 +135,26 @@ func mkTime(secondsAfterBase time.Duration) time.Time {
 	return t.Add(secondsAfterBase * time.Second)
 }
 
-func requestHeadersMatch(expected *RequestData, actual *RequestData) bool {
-	for header, value := range expected.Headers {
-		if !strings.EqualFold(value, actual.Headers[header]) {
-			return false
-		}
-	}
-	return true
-}
-
-func findRequestData(expected []RequestData, actual *RequestData) (*RequestData, error) {
-	for _, req := range expected {
-		headersMatch := requestHeadersMatch(&req, actual)
-		bodyMatch := reflect.DeepEqual(req.Body, actual.Body)
-		if headersMatch && bodyMatch {
-			return &req, nil
-		}
-	}
-	return &RequestData{}, fmt.Errorf(
-		"Could not find request data in expected requests")
-}
-
 func (ts *TestSuite) verifyExpectedRequests(expectedRequests []RequestData, requests chan *RequestData) {
-	for i := 0; i < len(expectedRequests); i++ {
+	requestCount := len(expectedRequests)
+	for i := 0; i < requestCount; i++ {
 		select {
 		case req := <-requests:
-			ts.WithoutError(findRequestData(expectedRequests, req))
+			ts.checkRequest(&expectedRequests, req)
 		case <-time.After(100 * time.Millisecond):
 			ts.Fail("Timeout waiting for requests.")
+		}
+	}
+}
+
+func (ts *TestSuite) checkRequest(exreqs *[]RequestData, req *RequestData) {
+	if ts.Contains(*exreqs, *req) {
+		for i, exreq := range *exreqs {
+			if assert.ObjectsAreEqualValues(exreq, *req) {
+				(*exreqs)[i] = (*exreqs)[len(*exreqs)-1]
+				*exreqs = (*exreqs)[:len(*exreqs)-1]
+				return
+			}
 		}
 	}
 }
